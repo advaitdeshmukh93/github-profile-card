@@ -1,0 +1,49 @@
+# CI Pipeline - Runs type checking and tests on every push/PR
+# Author: Nayan Das (https://github.com/nayandas69)
+
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Type Check & Test
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20, 22, 24]
+
+    steps:
+      # 1. Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # 2. Install pnpm (version taken from package.json)
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      # 3. Setup Node.js with pnpm caching
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "pnpm"
+
+      # 4. Install dependencies
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 5. Type check
+      - name: Type check
+        run: pnpm typecheck
+
+      # 6. Run tests
+      - name: Run tests
+        run: pnpm test
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}

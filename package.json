@@ -1,0 +1,45 @@
+{
+  "name": "github-profile-card",
+  "version": "0.1.0",
+  "description": "Github Profile Card is a Node.js application that generates a visually appealing profile card for GitHub users. It fetches user data from the GitHub API and displays it in a card format, making it easy to share and showcase GitHub profiles.",
+  "homepage": "https://github.com/nayandas69/github-profile-card",
+  "license": "MIT",
+  "author": {
+    "name": "Nayan Das",
+    "url": "https://github.com/nayandas69"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nayandas69/github-profile-card.git"
+  },
+  "type": "module",
+  "packageManager": "pnpm@10.29.2",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/server.ts",
+    "start": "node --env-file=.env --import tsx src/server.ts",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/ __tests__/",
+    "lint:fix": "eslint src/ __tests__/ --fix",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.ts\" \"__tests__/**/*.ts\" \"api/**/*.ts\" \"vitest.config.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"__tests__/**/*.ts\" \"api/**/*.ts\" \"vitest.config.ts\""
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.8",
+    "@upstash/redis": "^1.36.2",
+    "hono": "^4.7.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "prettier": "^3.5.3",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

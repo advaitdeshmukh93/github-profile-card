@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Config files (JSON, YAML, etc.)
+*.json
+*.yml
+*.yaml
+*.md
+
+# Environment
+.env
+.env.*
+
+# Vercel
+.vercel/
+
+# Lock files
+pnpm-lock.yaml
+
+# Only format .ts files — ignore everything else
+!**/*.ts
