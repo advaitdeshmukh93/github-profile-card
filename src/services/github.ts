@@ -91,6 +91,9 @@ query userInfo($login: String!, $cursor: String, $from: DateTime!, $to: DateTime
 /** Cache TTL: 30 minutes (matches the CDN s-maxage) */
 const CACHE_TTL_SECONDS = 30 * 60;
 
+/** Maximum number of in-flight requests to prevent memory bloat */
+const MAX_IN_FLIGHT_REQUESTS = 100;
+
 /** In-memory cache entry with expiry and optional in-flight promise */
 interface CacheEntry {
   expiresAt: number;
@@ -100,6 +103,9 @@ interface CacheEntry {
 
 /** In-memory LRU-style cache map */
 const cache = new Map<string, CacheEntry>();
+
+/** Counter for in-flight requests */
+let inFlightCount = 0;
 
 /** Options for controlling what data to fetch */
 interface FetchOptions {
@@ -126,7 +132,10 @@ async function getRedis(): Promise<import('@upstash/redis').Redis | null> {
   if (!redisPromise) {
     redisPromise = import('@upstash/redis')
       .then((mod) => new mod.Redis({ url: redisUrl, token: redisToken }))
-      .catch(() => null);
+      .catch((err) => {
+        console.error('Failed to initialize Redis:', err instanceof Error ? err.message : err);
+        return null;
+      });
   }
 
   return redisPromise;
@@ -145,15 +154,20 @@ async function fetchAvatarDataUrl(url: string): Promise<string | null> {
     const sizedUrl = `${url}${url.includes('?') ? '&' : '?'}s=96`;
     const res = await fetch(sizedUrl, {
       headers: { 'User-Agent': 'github-profile-card' },
+      signal: AbortSignal.timeout(5000), // 5 second timeout
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`Avatar fetch failed: ${res.status} for ${url}`);
+      return null;
+    }
 
     const contentType = res.headers.get('content-type') || 'image/png';
     const bytes = await res.arrayBuffer();
     const base64 = Buffer.from(bytes).toString('base64');
     return `data:${contentType};base64,${base64}`;
-  } catch {
+  } catch (err) {
+    console.warn('Avatar fetch error:', err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -213,7 +227,8 @@ export async function getProfileData(
         setCache(cacheKey, redisValue);
         return redisValue;
       }
-    } catch {
+    } catch (err) {
+      console.warn('Redis get error:', err instanceof Error ? err.message : err);
       // Redis failure is non-fatal; fall through to API
     }
   }
@@ -222,7 +237,13 @@ export async function getProfileData(
   const existing = cache.get(cacheKey);
   if (existing?.inFlight) return existing.inFlight;
 
+  /* --- Check in-flight request limit --- */
+  if (inFlightCount >= MAX_IN_FLIGHT_REQUESTS) {
+    throw new Error('Too many concurrent requests. Please try again later.');
+  }
+
   /* --- Layer 3: Live GitHub GraphQL API --- */
+  inFlightCount++;
   const inFlight = (async (): Promise<ProfileData> => {
     try {
       // Build date range for contribution stats (current year)
@@ -237,9 +258,13 @@ export async function getProfileData(
       let user: any = null;
       let totalStars = 0;
       const langMap = includeLanguages ? new Map<string, { size: number; color: string }>() : null;
+      let pageCount = 0;
+      const maxPages = 10; // Prevent runaway pagination
 
       // Paginate through all repositories to get complete data
-      while (hasNextPage) {
+      while (hasNextPage && pageCount < maxPages) {
+        pageCount++;
+
         const res = await fetch('https://api.github.com/graphql', {
           method: 'POST',
           headers: getHeaders(),
@@ -247,11 +272,18 @@ export async function getProfileData(
             query: includeLanguages ? QUERY_WITH_LANGS : QUERY_NO_LANGS,
             variables: { login: username, cursor, from, to },
           }),
+          signal: AbortSignal.timeout(10000), // 10 second timeout
         });
 
         if (!res.ok) {
           const text = await res.text();
-          throw new Error(`GitHub API error (${res.status}): ${text}`);
+          if (res.status === 401) {
+            throw new Error('GitHub API authentication failed (401)');
+          }
+          if (res.status === 403) {
+            throw new Error('GitHub API rate limit exceeded or access forbidden (403)');
+          }
+          throw new Error(`GitHub API error (${res.status}): ${text.slice(0, 100)}`);
         }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -342,7 +374,8 @@ export async function getProfileData(
           await redis.set(`profile:${cacheKey}`, profile, {
             ex: CACHE_TTL_SECONDS,
           });
-        } catch {
+        } catch (err) {
+          console.warn('Redis set error:', err instanceof Error ? err.message : err);
           // Non-fatal: Redis write failure doesn't break the response
         }
       }
@@ -352,6 +385,8 @@ export async function getProfileData(
       // Clear cache entry on failure so next request retries
       cache.delete(cacheKey);
       throw err;
+    } finally {
+      inFlightCount--;
     }
   })();
 

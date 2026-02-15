@@ -7,19 +7,7 @@
  */
 
 import { resolveColors, kFormat, escapeXml, icon, wrapText } from '../utils/index.js';
-import type { UserProfile, UserStats, LanguageStat } from '../types/index.js';
-
-/** Options for customizing the card rendering */
-export interface CardOpts {
-  theme?: string;
-  title_color?: string;
-  text_color?: string;
-  icon_color?: string;
-  bg_color?: string;
-  border_color?: string;
-  hide_border?: boolean;
-  compact?: boolean;
-}
+import type { UserProfile, UserStats, LanguageStat, CardOptions } from '../types/index.js';
 
 /**
  * Renders a GitHub profile card as an SVG string.
@@ -34,8 +22,12 @@ export function renderCard(
   user: UserProfile,
   stats: UserStats,
   langs: LanguageStat[],
-  opts: CardOpts = {}
+  opts: CardOptions = {}
 ): string {
+  // Validate inputs
+  if (!user?.login) throw new Error('Invalid user data: missing login');
+  if (!stats) throw new Error('Invalid stats data');
+
   // Resolve theme colors (base theme + user overrides)
   const c = resolveColors(opts);
   const hideBorder = opts.hide_border ?? false;
@@ -48,7 +40,7 @@ export function renderCard(
   const bioLines = bioRaw ? wrapText(bioRaw, 42, 2) : [];
   const pronouns = !compact && user.pronouns ? escapeXml(user.pronouns) : '';
   const avatarSource = user.avatarDataUrl || user.avatarUrl;
-  const avatar = avatarSource.replace(/&/g, '&amp;');
+  const avatar = avatarSource?.replace(/&/g, '&amp;') || 'data:image/svg+xml,%3Csvg%3E%3C/svg%3E';
   const twitter = !compact && user.twitter ? escapeXml(user.twitter) : '';
 
   /* --- Layout constants --- */

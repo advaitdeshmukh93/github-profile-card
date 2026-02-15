@@ -20,6 +20,26 @@ const app = new Hono();
 // Enable CORS so cards can be embedded anywhere
 app.use('*', cors());
 
+// Logger middleware for debugging and monitoring
+app.use('*', async (c, next) => {
+  const start = Date.now();
+  await next();
+  const duration = Date.now() - start;
+  console.log(`[${c.req.method}] ${c.req.path} - ${c.res.status} - ${duration}ms`);
+});
+
+/* --- Helper Functions --- */
+
+/** Validates GitHub username format (alphanumeric, hyphens, underscores) */
+function isValidGitHubUsername(username: string): boolean {
+  return /^[a-zA-Z0-9_-]{1,39}$/.test(username);
+}
+
+/** Validates hex color format (with or without #) */
+function isValidHexColor(color: string): boolean {
+  return /^#?[0-9a-fA-F]{6}$/.test(color);
+}
+
 /* --- Routes --- */
 
 /**
@@ -29,7 +49,7 @@ app.use('*', cors());
 app.get('/', (c) => {
   return c.json({
     name: 'GitHub Profile Card API',
-    version: '0.1.0',
+    version: '0.1.1',
     author: 'Nayan Das (https://github.com/nayandas69)',
     usage: 'GET /card/:username',
     themes: Object.keys(themes),
@@ -51,7 +71,28 @@ app.get('/', (c) => {
 app.get('/card/:username', async (c) => {
   try {
     const username = c.req.param('username');
+
+    // Validate username format
+    if (!username || !isValidGitHubUsername(username)) {
+      return c.json(
+        {
+          error:
+            'Invalid GitHub username. Username must be 1-39 characters and contain only alphanumeric characters, hyphens, or underscores.',
+        },
+        400
+      );
+    }
+
     const query = c.req.query();
+
+    // Validate color parameters if provided
+    const colorParams = ['title_color', 'text_color', 'icon_color', 'bg_color', 'border_color'];
+    for (const param of colorParams) {
+      const color = query[param];
+      if (color && !isValidHexColor(color)) {
+        return c.json({ error: `Invalid hex color for ${param}: ${color}` }, 400);
+      }
+    }
 
     // Parse optional fields filter
     const fields = query['fields']
@@ -88,8 +129,37 @@ app.get('/card/:username', async (c) => {
       'Cache-Control': 'public, max-age=0, s-maxage=1800, stale-while-revalidate=1800',
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error occurred';
-    return c.json({ error: message }, 404);
+    if (err instanceof Error) {
+      const message = err.message;
+
+      // GitHub API user not found error
+      if (message.includes('User not found')) {
+        return c.json({ error: `GitHub user "${c.req.param('username')}" not found` }, 404);
+      }
+
+      // GitHub API rate limit error
+      if (message.includes('API rate limit exceeded')) {
+        return c.json({ error: 'GitHub API rate limit exceeded. Please try again later.' }, 429);
+      }
+
+      // GitHub token missing error
+      if (message.includes('GITHUB_TOKEN')) {
+        console.error('GITHUB_TOKEN not configured');
+        return c.json(
+          { error: 'Server configuration error. Please contact the administrator.' },
+          500
+        );
+      }
+
+      // Other GitHub API errors
+      if (message.includes('GitHub API error')) {
+        return c.json({ error: 'GitHub API error. Please try again later.' }, 503);
+      }
+
+      return c.json({ error: message }, 500);
+    }
+
+    return c.json({ error: 'An unexpected error occurred' }, 500);
   }
 });
 

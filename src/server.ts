@@ -11,11 +11,79 @@
  */
 
 import { serve } from '@hono/node-server';
+import http from 'http';
 import app from './app.js';
 
-/** Port to listen on (defaults to 3000) */
-const port = Number(process.env['PORT'] || 3000);
+/** Base port to listen on (defaults to 3000) */
+const basePort = Number(process.env['PORT'] || 3000);
 
-serve({ fetch: app.fetch, port }, () => {
-  console.log(`GitHub Profile Card API running on http://localhost:${port}`);
-});
+/** Graceful shutdown handler */
+function handleShutdown() {
+  console.log('Received shutdown signal. Gracefully shutting down...');
+  process.exit(0);
+}
+
+/**
+ * Finds an available port by attempting to bind to sequential ports
+ * if the base port is already in use.
+ */
+function findAvailablePort(port: number): Promise<number> {
+  return new Promise((resolve) => {
+    const server = http.createServer();
+
+    server.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        // Port is in use, try the next one
+        resolve(findAvailablePort(port + 1));
+      } else {
+        throw err;
+      }
+    });
+
+    server.once('listening', () => {
+      server.close();
+      resolve(port);
+    });
+
+    server.listen(port, '::');
+  });
+}
+
+/**
+ * Start the server on an available port
+ */
+(async () => {
+  try {
+    const availablePort = await findAvailablePort(basePort);
+
+    serve({ fetch: app.fetch, port: availablePort }, () => {
+      console.log(`GitHub Profile Card API running on http://localhost:${availablePort}`);
+      console.log(`Environment: ${process.env['NODE_ENV'] || 'development'}`);
+
+      if (availablePort !== basePort) {
+        console.warn(
+          `Port ${basePort} was in use, using ${availablePort} instead. Set PORT env var to use a specific port.`
+        );
+      }
+    });
+
+    // Handle graceful shutdown
+    process.on('SIGTERM', handleShutdown);
+    process.on('SIGINT', handleShutdown);
+
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (err) => {
+      console.error('Uncaught Exception:', err);
+      process.exit(1);
+    });
+
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+      process.exit(1);
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+})();
