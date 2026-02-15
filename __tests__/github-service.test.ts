@@ -10,11 +10,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 /* -------------------------------------------------- */
-/*  Snapshot the original env so we can restore later  */
-/* -------------------------------------------------- */
-const originalEnv = { ...process.env };
-
-/* -------------------------------------------------- */
 /*  Helper: build a mock GitHub GraphQL API response   */
 /* -------------------------------------------------- */
 function mockGitHubResponse(overrides: Record<string, unknown> = {}) {
@@ -84,12 +79,6 @@ describe('getProfileData', () => {
     delete process.env['UPSTASH_REDIS_REST_TOKEN'];
     delete process.env['KV_REST_API_URL'];
     delete process.env['KV_REST_API_TOKEN'];
-  });
-
-  afterEach(() => {
-    // Restore the original env after every test
-    process.env = { ...originalEnv };
-    vi.restoreAllMocks();
   });
 
   /* ---------------------------------------------- */
@@ -166,7 +155,7 @@ describe('getProfileData', () => {
     // Set token so we get past the token check
     process.env['GITHUB_TOKEN'] = 'ghp_test_token_1234567890';
 
-    // Mock fetch to return a 401 error
+    // Mock fetch to return a 401 authentication error
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -178,7 +167,33 @@ describe('getProfileData', () => {
 
     const { getProfileData } = await import('../src/services/github');
 
-    await expect(getProfileData('octocat')).rejects.toThrow('GitHub API error');
+    // Expect the specific authentication error message
+    await expect(getProfileData('octocat')).rejects.toThrow('GitHub API authentication failed');
+  });
+
+  /* ---------------------------------------------- */
+  /*  Rate limit error handling                      */
+  /* ---------------------------------------------- */
+  it('handles rate limit errors gracefully', async () => {
+    // Set token so we get past the token check
+    process.env['GITHUB_TOKEN'] = 'ghp_test_token_1234567890';
+
+    // Mock fetch to return a 403 rate limit error
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        text: () => Promise.resolve('API rate limit exceeded'),
+      })
+    );
+
+    const { getProfileData } = await import('../src/services/github');
+
+    // Expect the specific rate limit error message
+    await expect(getProfileData('octocat')).rejects.toThrow(
+      'GitHub API rate limit exceeded or access forbidden'
+    );
   });
 
   /* ---------------------------------------------- */

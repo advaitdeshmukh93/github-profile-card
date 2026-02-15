@@ -6,4 +6,5 @@
  */
 
 export { getProfileData } from './github.js';
-export { renderCard, type CardOpts } from './card.js';
+export { renderCard } from './card.js';
+export type { CardOptions } from '../types/index.js';
