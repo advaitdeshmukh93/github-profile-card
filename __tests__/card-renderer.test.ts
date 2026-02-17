@@ -31,6 +31,7 @@ const mockStats: UserStats = {
   prs: 78,
   issues: 90,
   commits: 2500,
+  commitYear: new Date().getUTCFullYear(),
 };
 
 /** Minimal mock language data for testing */
@@ -68,6 +69,12 @@ describe('renderCard', () => {
     expect(svg).toContain('2.5k');
   });
 
+  it('displays the commit year in the Commits label', () => {
+    const svg = renderCard(mockUser, mockStats, mockLangs);
+    const year = new Date().getUTCFullYear();
+    expect(svg).toContain(`Commits (${year})`);
+  });
+
   it('includes language names', () => {
     const svg = renderCard(mockUser, mockStats, mockLangs);
     expect(svg).toContain('TypeScript');
@@ -77,7 +84,19 @@ describe('renderCard', () => {
 
   it('includes bio text when not compact', () => {
     const svg = renderCard(mockUser, mockStats, mockLangs, { compact: false });
-    expect(svg).toContain('Open source developer');
+    expect(svg).toContain('Open source developer and coffee lover');
+  });
+
+  it('truncates long bios to a single line with ellipsis', () => {
+    const longBio: UserProfile = {
+      ...mockUser,
+      bio: 'This is a really long biography that definitely exceeds the forty character limit',
+    };
+    const svg = renderCard(longBio, mockStats, mockLangs, { compact: false });
+    // Should contain the first 40 characters followed by an ellipsis
+    expect(svg).toContain('This is a really long biography that def\u2026');
+    // Should NOT contain the full untruncated bio
+    expect(svg).not.toContain('forty character limit');
   });
 
   it('hides bio in compact mode', () => {

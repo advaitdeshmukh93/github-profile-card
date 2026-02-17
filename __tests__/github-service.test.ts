@@ -140,6 +140,8 @@ describe('getProfileData', () => {
     // Issues: 3 + 7 = 10
     expect(data.stats.issues).toBe(10);
     expect(data.stats.commits).toBe(500);
+    // commitYear should match the current UTC year
+    expect(data.stats.commitYear).toBe(new Date().getUTCFullYear());
 
     // Verify language aggregation (TypeScript: 5000 + 2000 = 7000, JS: 3000)
     expect(data.languages.length).toBeGreaterThanOrEqual(1);
