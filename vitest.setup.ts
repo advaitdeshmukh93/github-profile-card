@@ -3,7 +3,8 @@
  * Runs before all tests to set up mocks, fixtures, and teardown handlers.
  */
 
-import { beforeAll, afterEach, vi } from 'vitest';
+// Only afterEach and vi are used in this setup file (beforeAll is not needed).
+import { afterEach, vi } from 'vitest';
 
 /* ----------------------------------------- */
 /*  Global test timeout (prevents hanging)   */
