@@ -7,7 +7,8 @@
  * @author Nayan Das <https://github.com/nayandas69>
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+// afterEach is handled globally in vitest.setup.ts; only beforeEach is needed here.
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /* -------------------------------------------------- */
 /*  Helper: build a mock GitHub GraphQL API response   */
