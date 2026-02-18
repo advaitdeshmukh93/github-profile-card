@@ -31,52 +31,6 @@ export function escapeXml(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
-/**
- * Wraps a long string into multiple lines, respecting word boundaries.
- * Adds an ellipsis to the last line if the text was truncated.
- *
- * @param input   - The raw text to wrap
- * @param maxLen  - Maximum characters per line
- * @param maxLines - Maximum number of output lines
- */
-export function wrapText(input: string, maxLen: number, maxLines: number): string[] {
-  const words = input.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = '';
-
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-
-    if (next.length <= maxLen) {
-      current = next;
-      continue;
-    }
-
-    // Current line is full, push it
-    if (current) lines.push(current);
-    current = word;
-
-    // Stop early if we've hit the line limit
-    if (lines.length >= maxLines - 1) break;
-  }
-
-  // Push any remaining text
-  if (current && lines.length < maxLines) lines.push(current);
-
-  // Fallback: if nothing was added but input exists, force the first chunk
-  if (lines.length === 0 && input) lines.push(input.slice(0, maxLen));
-
-  // Add ellipsis if text was truncated
-  if (lines.length === maxLines && words.length > 0) {
-    const last = lines[lines.length - 1];
-    if (!last) return lines;
-
-    if (last.length > maxLen) {
-      lines[lines.length - 1] = last.slice(0, Math.max(0, maxLen - 1)) + '\u2026';
-    } else if (words.join(' ').length > lines.join(' ').length) {
-      lines[lines.length - 1] = last.slice(0, Math.max(0, maxLen - 1)) + '\u2026';
-    }
-  }
-
-  return lines;
-}
+// NOTE: wrapText was removed because the SVG card uses single-line bio
+// truncation (see card.ts) rather than multi-line wrapping. Keeping only
+// the utilities that are actually consumed by production code.

@@ -6,6 +6,7 @@
  */
 
 export { resolveColors, type Theme } from './themes.js';
-export { kFormat, escapeXml, wrapText } from './format.js';
+// Only kFormat and escapeXml are used in production code; wrapText was removed.
+export { kFormat, escapeXml } from './format.js';
 export { getLangColor } from './languages.js';
 export { icons, icon, type IconName } from './icons.js';
