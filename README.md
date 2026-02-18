@@ -853,7 +853,12 @@ Generates a customised SVG profile representation for the designated GitHub user
 - `theme` - Thematic identifier (default: "default")
 - `compact` - Biographical and social element suppression (true/false)
 - `hide_border` - Perimeter element removal (true/false)
+- `fields` - Statistical field filtration mechanism; accepts comma-separated values of `languages`, `stats`, or `all` (default: "all")
 - `title_color`, `text_color`, `icon_color`, `bg_color`, `border_color` - Hexadecimal colour substitutions
+
+**Card Rendering Behaviour:**
+- The Commits statistic is scoped to the current calendar year and is labelled accordingly (e.g. "Commits (2026)").
+- Biographical text exceeding 40 characters is truncated to a single line with an ellipsis.
 
 **Response Specification:** SVG image with appropriate HTTP caching directives
 
@@ -872,7 +877,7 @@ Elementary server availability verification mechanism.
 
 The system implements a tripartite caching infrastructure for enhanced performance optimisation:
 
-1. **In-Memory Caching Layer** - Instantaneous retrieval, instance-specific storage (30-minute retention interval)
+1. **In-Memory Caching Layer** - Instantaneous retrieval, instance-specific storage (30-minute retention interval). Bounded to a maximum of 500 entries with LRU eviction policy, and a periodic sweep that clears expired entries every 5 minutes. Concurrent in-flight requests are capped at 100 to prevent memory exhaustion.
 2. **Distributed Redis Caching** - Upstash Redis integration across multiple instances (30-minute retention interval)
 3. **Live API Interrogation** - GitHub GraphQL API with duplicate request prevention mechanisms
 
@@ -881,6 +886,7 @@ This architectural approach facilitates:
 - Mitigated GitHub API rate-limiting constraints
 - Standardised data representation across distributed instances
 - Automatic fallback to real-time API interrogation upon cache failure
+- Bounded memory consumption through LRU eviction and periodic cache sweeping
 
 ## Licensing Information
 
