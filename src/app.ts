@@ -49,7 +49,7 @@ function isValidHexColor(color: string): boolean {
 app.get('/', (c) => {
   return c.json({
     name: 'GitHub Profile Card API',
-    version: '0.1.1',
+    version: '0.1.2',
     author: 'Nayan Das (https://github.com/nayandas69)',
     usage: 'GET /card/:username',
     themes: Object.keys(themes),
