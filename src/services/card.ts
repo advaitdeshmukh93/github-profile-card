@@ -49,9 +49,15 @@ export function renderCard(
   /* --- Escape user-provided text for safe SVG embedding --- */
   const name = escapeXml(user.name || user.login);
   const uname = escapeXml(user.login);
-  const bioRaw = !compact && user.bio ? escapeXml(user.bio) : '';
   // Single-line bio: truncate at 40 characters with ellipsis if longer
-  const bioLine = bioRaw ? (bioRaw.length > 40 ? bioRaw.slice(0, 40) + '\u2026' : bioRaw) : '';
+  const bioTruncated =
+    !compact && user.bio
+      ? user.bio.length > 40
+        ? user.bio.slice(0, 40) + '\u2026'
+        : user.bio
+      : '';
+
+  const bioLine = bioTruncated ? escapeXml(bioTruncated) : '';
   const pronouns = !compact && user.pronouns ? escapeXml(user.pronouns) : '';
   const avatarSource = user.avatarDataUrl || user.avatarUrl;
   const avatar = avatarSource?.replace(/&/g, '&amp;') || 'data:image/svg+xml,%3Csvg%3E%3C/svg%3E';
@@ -112,20 +118,22 @@ export function renderCard(
 
   const H = Math.max(cursorY, compact ? 120 : 160); // Minimum height for visual balance
 
-  const barY = H - (!compact && langs.length > 0 ? 40 : 24); // Y position of the language bar
-  const labelY = H - 16; // Y position of the language labels
+  const barY = showLanguages ? H - (!compact && langs.length > 0 ? 40 : 24) : 0;
+  const labelY = showLanguages ? H - 16 : 0;
 
   /* --- Language bar segments (proportional widths) --- */
   const totalSize = langs.reduce((sum, l) => sum + l.size, 0) || 1;
   let offset = 0;
-  const langRects = langs
-    .map((lang) => {
-      const w = (lang.size / totalSize) * barWidth;
-      const r = `<rect x="${P + offset}" y="${barY}" width="${w}" height="8" fill="${lang.color}"/>`;
-      offset += w;
-      return r;
-    })
-    .join('');
+  const langRects = showLanguages
+    ? langs
+        .map((lang) => {
+          const w = (lang.size / totalSize) * barWidth;
+          const r = `<rect x="${P + offset}" y="${barY}" width="${w}" height="8" fill="${lang.color}"/>`;
+          offset += w;
+          return r;
+        })
+        .join('')
+    : '';
 
   /**
    * [Fix] Issue #3 Bug 5 - Two-pass fit-all label layout.
@@ -176,7 +184,7 @@ export function renderCard(
   }
 
   let langLabels = '';
-  if (!compact && langs.length > 0) {
+  if (showLanguages && !compact && langs.length > 0) {
     // Find the longest language name to use as the starting point
     const longestName = Math.max(...langs.map((l) => l.name.length));
 
@@ -222,7 +230,7 @@ export function renderCard(
     <title>${name}'s GitHub Stats</title>
     <defs>
       <clipPath id="a"><circle cx="${P + avatarSize / 2}" cy="${P + avatarSize / 2}" r="${avatarSize / 2}"/></clipPath>
-      <clipPath id="b"><rect x="${P}" y="${barY}" width="${barWidth}" height="8" rx="4"/></clipPath>
+      ${showLanguages ? `<clipPath id="b"><rect x="${P}" y="${barY}" width="${barWidth}" height="8" rx="4"/></clipPath>` : ''}
     </defs>
     <style>
       *{font-family:${fontFamily},sans-serif}
