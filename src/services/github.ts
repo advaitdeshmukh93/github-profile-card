@@ -127,10 +127,11 @@ interface CacheEntry {
 
 /**
  * In-memory cache map with bounded size and periodic expiry sweep.
- * Map insertion order is used for LRU-style eviction: oldest entries
- * (first inserted) are removed first when MAX_CACHE_SIZE is exceeded.
- * [Fix] Issue #3 Bug 1 - Renamed from "LRU-style" (which was inaccurate)
- * to reflect the actual bounded eviction strategy now in place.
+ * Uses FIFO eviction with write-refresh: oldest entries (by insertion
+ * order) are removed first when MAX_CACHE_SIZE is exceeded. Writes
+ * refresh an entry's position but reads do not, so this is not true
+ * LRU. For a 500-entry cache with 30-minute TTL this is sufficient.
+ * [Fix] Issue #3 Bug 1
  */
 const cache = new Map<string, CacheEntry>();
 
@@ -291,31 +292,38 @@ export async function getProfileData(
 ): Promise<ProfileData> {
   const includeLanguages = opts.includeLanguages ?? true;
   const cacheKey = `${username}:${includeLanguages ? 'langs' : 'nolangs'}`;
-
   /* --- Layer 1: In-memory cache --- */
   const cached = getCache(cacheKey);
   if (cached) return cached;
-
+  /**
+   * Cache superset check: when languages are NOT requested, a cached
+   * "langs" entry for the same user is a superset of the needed data
+   * (it contains profile + stats + languages). Reuse it instead of
+   * making a redundant API call with QUERY_NO_LANGS.
+   */
+  if (!includeLanguages) {
+    const supersetCached = getCache(`${username}:langs`);
+    if (supersetCached) return supersetCached;
+  }
   /* --- Layer 2: Upstash Redis --- */
   const redis = await getRedis();
   if (redis) {
     try {
       const redisValue = await redis.get<ProfileData>(`profile:${cacheKey}`);
-      /**
-       * Validate that cached data contains all required fields before using it.
-       * Stale entries from before the commitYear field was added (Bug 6) would
-       * have stats.commitYear === undefined, causing "Commits (undefined)" on
-       * the rendered card. If any required field is missing we skip the cached
-       * entry and fall through to the live API, which will also overwrite the
-       * stale Redis entry with fresh data.
-       */
       if (redisValue && redisValue.stats?.commitYear != null) {
         setCache(cacheKey, redisValue);
         return redisValue;
       }
+      // Check superset key in Redis when languages are not requested
+      if (!includeLanguages) {
+        const supersetRedis = await redis.get<ProfileData>(`profile:${username}:langs`);
+        if (supersetRedis && supersetRedis.stats?.commitYear != null) {
+          setCache(cacheKey, supersetRedis);
+          return supersetRedis;
+        }
+      }
     } catch (err) {
       console.warn('Redis get error:', err instanceof Error ? err.message : err);
-      // Redis failure is non-fatal; fall through to API
     }
   }
 
